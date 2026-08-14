@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "main",
+    "slug": "main",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/imagem.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/imagem.png",
+        "backgroundImage": "./assets/imagem.png",
+        "monochromeImage": "./assets/imagem.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/imagem.png"
+    }
+  }
+}

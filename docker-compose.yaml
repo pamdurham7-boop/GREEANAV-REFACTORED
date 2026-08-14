@@ -1,0 +1,41 @@
+services:
+  mysql-database:
+    image: mysql:8.3.0
+    env_file: ./db-mysql/mysql.env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  java-backend:
+    image: my-java-app
+    build: ./main-java
+    env_file: ./main-java/java.env
+    restart: unless-stopped
+    depends_on:
+      mysql-database:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+  typescript-app:
+    image: my-ts-app
+    build: ./main-tsx
+    env_file: ./main-tsx/tsx.env
+    depends_on:
+      - java-backend
+
+  cloudflare-tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflare-tunnel
+    env_file: ./cloudflare/cloudflare.env
+    restart: unless-stopped
+    depends_on:
+      - typescript-app
+      - java-backend
+    
+    # Remote Managed Tunnel (Zero Trust Dashboard)
+    command: tunnel --no-autoupdate run
