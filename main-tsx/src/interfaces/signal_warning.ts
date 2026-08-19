@@ -6,29 +6,13 @@ export const SIGNAL_WARNING_COLORS = {
   Gray: '#9CA3AF',
 } as const;
 
-export type SignalWarningColor = keyof typeof SIGNAL_WARNING_COLORS;
-
-export type SignalWarningLocation = {
-  latitude: number;
-  longitude: number;
-};
-
-export type SignalWarning = {
+export interface SignalWarning {
   id: string;
-  warning: SignalWarningColor;
-  image: string;
-  pinColor: string;
-  location: SignalWarningLocation;
-};
-
-export const createSignalWarning = (
-  warning: Exclude<SignalWarningColor, 'Gray'>,
-  image: string,
-  location: SignalWarningLocation,
-): SignalWarning => ({
-  id: `${warning}-${location.latitude}-${location.longitude}`,
-  warning,
-  image,
-  pinColor: SIGNAL_WARNING_COLORS[warning],
-  location,
-});
+  deviceId: string;
+  color: 'RED' | 'YELLOW' | 'GREEN' | 'BLUE' | 'NONE';
+  location: {
+    latitude: number;
+    longitude: number;
+  };
+  timestamp: number;
+}

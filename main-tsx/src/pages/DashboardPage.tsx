@@ -33,6 +33,7 @@ type DashboardPageProps = {
   pinColor: string;
   onToggleRed: () => void;
   onToggleYellow: () => void;
+  onDeleteLocation: (id: string) => void;
 };
 
 export function DashboardPage({
@@ -51,6 +52,7 @@ export function DashboardPage({
   pinColor,
   onToggleRed,
   onToggleYellow,
+  onDeleteLocation,
 }: DashboardPageProps) {
   return (
     <View style={styles.pageShell}>
@@ -62,9 +64,7 @@ export function DashboardPage({
           </Text>
         </View>
 
-        <Animated.View
-          style={[styles.chartCard, { width: panelWidth }, isDesktop && styles.chartCardDesktop]}
-        >
+        <Animated.View style={[styles.chartCard, { width: panelWidth }, isDesktop && styles.chartCardDesktop]}>
           <View style={styles.chartHeader}>
             <View>
               <Text style={styles.chartEyebrow}>Warning balance</Text>
@@ -105,34 +105,39 @@ export function DashboardPage({
           {showRedLocations ? (
             <View style={styles.dropdownContent}>
               {signalsRed.map((signal) => (
-                <Text key={signal.id} style={styles.dropdownText}>
-                  {signal.location.latitude.toFixed(6)}, {signal.location.longitude.toFixed(6)}
-                </Text>
+                <View key={signal.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={styles.dropdownText}>
+                    {signal.location.latitude.toFixed(6)}, {signal.location.longitude.toFixed(6)}
+                  </Text>
+                  <Pressable onPress={() => onDeleteLocation(signal.id)} style={{ paddingVertical: 4 }}>
+                    <Text style={{ color: '#EF4444', fontWeight: 'bold' }}>Delete</Text>
+                  </Pressable>
+                </View>
               ))}
             </View>
           ) : null}
 
-          <Pressable
-            style={({ pressed }) => [styles.dropdownRow, pressed && styles.pressRow]}
-            onPress={onToggleYellow}
-          >
+          <Pressable style={({ pressed }) => [styles.dropdownRow, pressed && styles.pressRow]} onPress={onToggleYellow}>
             <Text style={styles.dropdownArrow}>{showYellowLocations ? '▾' : '▸'}</Text>
             <Text style={styles.dropdownLabel}>Yellow locations</Text>
           </Pressable>
           {showYellowLocations ? (
             <View style={styles.dropdownContent}>
               {signalsYellow.map((signal) => (
-                <Text key={signal.id} style={styles.dropdownText}>
-                  {signal.location.latitude.toFixed(6)}, {signal.location.longitude.toFixed(6)}
-                </Text>
+                <View key={signal.id} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text style={styles.dropdownText}>
+                    {signal.location.latitude.toFixed(6)}, {signal.location.longitude.toFixed(6)}
+                  </Text>
+                  <Pressable onPress={() => onDeleteLocation(signal.id)} style={{ paddingVertical: 4 }}>
+                    <Text style={{ color: '#F59E0B', fontWeight: 'bold' }}>Delete</Text>
+                  </Pressable>
+                </View>
               ))}
             </View>
           ) : null}
         </Animated.View>
 
-        <Animated.View
-          style={[styles.mapCard, { width: panelWidth, height: mapHeight }, isDesktop && styles.mapCardDesktop]}
-        >
+        <Animated.View style={[styles.mapCard, { width: panelWidth, height: mapHeight }, isDesktop && styles.mapCardDesktop]}>
           {location ? (
             <LocationMap location={location} pinColor={pinColor} />
           ) : (

@@ -23,21 +23,6 @@ type StoredCredentials = {
   password: string;
 };
 
-const signalsRed: SignalWarning[] = [];
-const signalsYellow: SignalWarning[] = [];
-const signalsGreen: SignalWarning[] = [];
-const signalsBlue: SignalWarning[] = [];
-
-const totalWarnings =
-  signalsRed.length + signalsYellow.length + signalsGreen.length + signalsBlue.length;
-
-const pieData = [
-  { label: 'Red', value: totalWarnings ? (signalsRed.length / totalWarnings) * 100 : 0 },
-  { label: 'Yellow', value: totalWarnings ? (signalsYellow.length / totalWarnings) * 100 : 0 },
-  { label: 'Green', value: totalWarnings ? (signalsGreen.length / totalWarnings) * 100 : 0 },
-  { label: 'Blue', value: totalWarnings ? (signalsBlue.length / totalWarnings) * 100 : 0 },
-];
-
 export default function App() {
   const { width, height } = useWindowDimensions();
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -59,18 +44,57 @@ export default function App() {
   const [showRedLocations, setShowRedLocations] = useState(false);
   const [showYellowLocations, setShowYellowLocations] = useState(false);
 
+  // Added dynamic signals state
+  const [signals, setSignals] = useState<SignalWarning[]>([]);
+
   const isDesktop = Platform.OS === 'web' && width >= 900;
   const cardWidth = Math.min(width - 48, isDesktop ? 1080 : 420);
   const panelWidth = isDesktop ? Math.floor((cardWidth - 20) / 2) : cardWidth;
   const chartWidth = Math.max(panelWidth - 24, 280);
   const mapHeight = Math.round(Math.min(panelWidth, 520) * (isDesktop ? 0.78 : 0.82));
-  const pinColor = SIGNAL_WARNING_COLORS.Gray;
-  const warningPalette = [
-    { label: 'Red', value: pieData[0].value, color: '#EF4444' },
-    { label: 'Yellow', value: pieData[1].value, color: '#F59E0B' },
-    { label: 'Green', value: pieData[2].value, color: '#10B981' },
-    { label: 'Blue', value: pieData[3].value, color: '#3B82F6' },
+
+  // Derived signal categories
+  const signalsRed = signals.filter(s => s.color === 'RED');
+  const signalsYellow = signals.filter(s => s.color === 'YELLOW');
+  const signalsGreen = signals.filter(s => s.color === 'GREEN');
+  const signalsBlue = signals.filter(s => s.color === 'BLUE');
+
+  const totalWarnings = signals.length;
+
+  const pieData = [
+    { label: 'Red', value: totalWarnings ? (signalsRed.length / totalWarnings) * 100 : 0 },
+    { label: 'Yellow', value: totalWarnings ? (signalsYellow.length / totalWarnings) * 100 : 0 },
+    { label: 'Green', value: totalWarnings ? (signalsGreen.length / totalWarnings) * 100 : 0 },
+    { label: 'Blue', value: totalWarnings ? (signalsBlue.length / totalWarnings) * 100 : 0 },
   ];
+
+  const warningPalette = totalWarnings > 0 
+    ? [
+        { label: 'Red', value: pieData[0].value, color: '#EF4444' },
+        { label: 'Yellow', value: pieData[1].value, color: '#F59E0B' },
+        { label: 'Green', value: pieData[2].value, color: '#10B981' },
+        { label: 'Blue', value: pieData[3].value, color: '#3B82F6' },
+      ]
+    : [
+        // Renders a single 100% gray slice so the math doesn't result in NaN
+        { label: 'No Data', value: 100, color: '#E5E7EB' } 
+      ];
+
+  // Dynamic Map Pin Logic based on sensor data
+  let mapLocation = location;
+  let pinColor = SIGNAL_WARNING_COLORS.Gray;
+
+  if (signals.length > 0) {
+    const latestSignal = signals.reduce((prev, curr) => (prev.timestamp > curr.timestamp) ? prev : curr, signals[0]);
+    mapLocation = latestSignal.location; // Forces map to sensor's location independent of the user
+    switch (latestSignal.color) {
+      case 'RED': pinColor = (SIGNAL_WARNING_COLORS as any).Red || '#EF4444'; break;
+      case 'YELLOW': pinColor = (SIGNAL_WARNING_COLORS as any).Yellow || '#F59E0B'; break;
+      case 'GREEN': pinColor = (SIGNAL_WARNING_COLORS as any).Green || '#10B981'; break;
+      case 'BLUE': pinColor = (SIGNAL_WARNING_COLORS as any).Blue || '#3B82F6'; break;
+      default: pinColor = (SIGNAL_WARNING_COLORS as any).Gray || '#9CA3AF';
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -83,9 +107,7 @@ export default function App() {
           AsyncStorage.getItem(LAST_LOCATION_STORAGE_KEY),
         ]);
 
-        if (!active) {
-          return;
-        }
+        if (!active) return;
 
         if (savedAuth) {
           const parsedAuth = JSON.parse(savedAuth) as StoredCredentials;
@@ -110,27 +132,19 @@ export default function App() {
     }
 
     hydrateAuth();
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
 
+  // Location Tracker
   useEffect(() => {
-    if (!isLoggedIn) {
-      return;
-    }
+    if (!isLoggedIn) return;
 
     let subscription: Location.LocationSubscription;
 
     async function startTracking() {
       const lastKnown = await Location.getLastKnownPositionAsync();
       if (lastKnown) {
-        const cachedLocation = {
-          latitude: lastKnown.coords.latitude,
-          longitude: lastKnown.coords.longitude,
-        };
-
+        const cachedLocation = { latitude: lastKnown.coords.latitude, longitude: lastKnown.coords.longitude };
         setLocation(cachedLocation);
         await AsyncStorage.setItem(LAST_LOCATION_STORAGE_KEY, JSON.stringify(cachedLocation));
       }
@@ -139,31 +153,58 @@ export default function App() {
       if (status !== 'granted') return;
 
       subscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 2000,
-          distanceInterval: 5,
-        },
+        { accuracy: Location.Accuracy.High, timeInterval: 2000, distanceInterval: 5 },
         (pos) => {
-          const nextLocation = {
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-          };
-
+          const nextLocation = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
           setLocation(nextLocation);
           AsyncStorage.setItem(LAST_LOCATION_STORAGE_KEY, JSON.stringify(nextLocation));
+
+          // Add this API call so the backend knows where the device is!
+          fetch('/device-location', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              deviceId: "1", // You will need to specify which device ID to map this to
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude
+            })
+          }).catch(err => console.error("Failed to update location", err));
         }
       );
     }
 
     startTracking();
-
     return () => subscription?.remove();
   }, [isLoggedIn]);
 
-const handleLogin = async () => {
+  // Backend Signal Polling
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let active = true;
+
+    const fetchSignals = async () => {
+      try {
+        const response = await fetch('/172.20.10.3:5000/signals');
+        if (response.ok && active) {
+          const data = await response.json();
+          setSignals(data);
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
+    fetchSignals();
+    const intervalId = setInterval(fetchSignals, 5000);
+    return () => {
+      active = false;
+      clearInterval(intervalId);
+    };
+  }, [isLoggedIn]);
+
+  const handleLogin = async () => {
     try {
-      const response = await fetch('http://localhost:8080/login', {
+      const response = await fetch('/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -178,7 +219,7 @@ const handleLogin = async () => {
       setIsLoggedIn(true);
       await AsyncStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({ username, password }));
     } catch (error) {
-      setLoginError('Network error connecting to the Java server.');
+      setLoginError('Network error connecting to the server.');
     }
   };
 
@@ -194,7 +235,7 @@ const handleLogin = async () => {
     }
 
     try {
-      const response = await fetch('http://localhost:8080/register', {
+      const response = await fetch('/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -220,18 +261,29 @@ const handleLogin = async () => {
         JSON.stringify({ username: registerUsername, password: registerPassword })
       );
     } catch (error) {
-      setRegisterError('Network error connecting to the Java server.');
+      setRegisterError('Network error connecting to the server.');
+    }
+  };
+
+  const handleDeleteLocation = async (deviceId: string) => {
+    try {
+      const response = await fetch('/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deviceId }),
+      });
+      if (response.ok) {
+        setSignals(prev => prev.filter(s => s.id !== deviceId));
+      }
+    } catch (error) {
+      console.error('Failed to delete location:', error);
     }
   };
 
   const shellStyle = [styles.container, { minHeight: height }];
   const headerStyle = {
     opacity: scrollY.interpolate({ inputRange: [0, 160], outputRange: [1, 0.96], extrapolate: 'clamp' }),
-    transform: [
-      {
-        translateY: scrollY.interpolate({ inputRange: [0, 160], outputRange: [0, -8], extrapolate: 'clamp' }),
-      },
-    ],
+    transform: [{ translateY: scrollY.interpolate({ inputRange: [0, 160], outputRange: [0, -8], extrapolate: 'clamp' }) }],
   };
 
   if (!isLoggedIn) {
@@ -241,9 +293,7 @@ const handleLogin = async () => {
         contentContainerStyle={shellStyle}
         keyboardShouldPersistTaps="handled"
         scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-          useNativeDriver: true,
-        })}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
       >
         {authScreen === 'login' ? (
           <LoginPage
@@ -285,9 +335,7 @@ const handleLogin = async () => {
       contentContainerStyle={shellStyle}
       keyboardShouldPersistTaps="handled"
       scrollEventThrottle={16}
-      onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
-        useNativeDriver: true,
-      })}
+      onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
     >
       <DashboardPage
         headerStyle={headerStyle}
@@ -301,14 +349,13 @@ const handleLogin = async () => {
         showYellowLocations={showYellowLocations}
         signalsRed={signalsRed}
         signalsYellow={signalsYellow}
-        location={location}
+        location={mapLocation}
         pinColor={pinColor}
         onToggleRed={() => setShowRedLocations((value) => !value)}
         onToggleYellow={() => setShowYellowLocations((value) => !value)}
+        onDeleteLocation={handleDeleteLocation}
       />
-
-      
-        <StatusBar style="auto" />
+      <StatusBar style="auto" />
     </Animated.ScrollView>
   );
 }
